@@ -1,71 +1,40 @@
+// piezo_alarm.v - audible alarm for a 1 kHz system clock.
+// Adapted from the alarm teammate's "alarm_denied" concept. The original
+// toggled the piezo every 50000 clocks, which assumes a fast (MHz) clock; at
+// 1 kHz that would be a 100-second period (inaudible). Here the piezo is a
+// ~500 Hz square wave (toggles each 1 kHz tick) that beeps on/off (~0.2 s)
+// while alarm_on = 1, and is silent otherwise.
 module piezo_alarm(
-    input  wire clk,
-    input  wire rst,
-    input  wire alarm_on,
-    input  wire success_beep,
-    input  wire fail_beep,
+    input  wire clk,        // 1 kHz system clock
+    input  wire rst,        // active-high reset
+    input  wire alarm_on,   // from FSM: high in ALARM state
     output reg  piezo
 );
-
-    reg tone;
-
-    reg [8:0] success_cnt;
-    reg [8:0] fail_cnt;
-
-    reg [7:0] alarm_beat;
-    reg       alarm_gate;
+    reg       tone;
+    reg [7:0] beat;
+    reg       gate;
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
-            tone        <= 1'b0;
-            success_cnt <= 9'd0;
-            fail_cnt    <= 9'd0;
-            alarm_beat  <= 8'd0;
-            alarm_gate  <= 1'b0;
-            piezo       <= 1'b0;
+            tone  <= 1'b0;
+            beat  <= 8'd0;
+            gate  <= 1'b0;
+            piezo <= 1'b0;
         end else begin
-            tone <= ~tone;
-
-            if (success_beep) begin
-                success_cnt <= 9'd300;
-            end
-
-            if (fail_beep) begin
-                fail_cnt <= 9'd400;
-            end
-
+            tone <= ~tone;                  // 1 kHz / 2 = 500 Hz tone
             if (alarm_on) begin
-                success_cnt <= 9'd0;
-                fail_cnt    <= 9'd0;
-
-                if (alarm_beat >= 8'd200) begin
-                    alarm_beat <= 8'd0;
-                    alarm_gate <= ~alarm_gate;
+                if (beat >= 8'd200) begin   // toggle beep on/off every 200 ms
+                    beat <= 8'd0;
+                    gate <= ~gate;
                 end else begin
-                    alarm_beat <= alarm_beat + 8'd1;
+                    beat <= beat + 8'd1;
                 end
-
-                piezo <= alarm_gate ? tone : 1'b0;
-            end else if (success_cnt > 9'd0) begin
-                success_cnt <= success_cnt - 9'd1;
-                alarm_beat  <= 8'd0;
-                alarm_gate  <= 1'b0;
-                piezo       <= tone;
-            end else if (fail_cnt > 9'd0) begin
-                fail_cnt   <= fail_cnt - 9'd1;
-                alarm_beat <= 8'd0;
-                alarm_gate <= 1'b0;
-
-                if ((fail_cnt > 9'd300) || (fail_cnt <= 9'd200 && fail_cnt > 9'd100))
-                    piezo <= tone;
-                else
-                    piezo <= 1'b0;
+                piezo <= gate ? tone : 1'b0;
             end else begin
-                alarm_beat <= 8'd0;
-                alarm_gate <= 1'b0;
-                piezo      <= 1'b0;
+                beat  <= 8'd0;
+                gate  <= 1'b0;
+                piezo <= 1'b0;
             end
         end
     end
-
 endmodule
